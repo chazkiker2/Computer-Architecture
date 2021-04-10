@@ -4,9 +4,9 @@
 
 8 general-purpose 8-bit numeric registers R0-R7.
 
-* R5 is reserved as the interrupt mask (IM)
-* R6 is reserved as the interrupt status (IS)
-* R7 is reserved as the stack pointer (SP)
+* `R5` is reserved as the interrupt mask (IM)
+* `R6` is reserved as the interrupt status (IS)
+* `R7` is reserved as the stack pointer (SP)
 
 > These registers only hold values between 0-255. After performing math on
 > registers in the emulator, bitwise-AND the result with 0xFF (255) to keep the

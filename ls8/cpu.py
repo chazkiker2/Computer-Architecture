@@ -64,7 +64,41 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        # execution sequence
+        # 1. instruction pointed to by PC is fetched from RAM, decoded, executed
+        # 2. if the instruction does NOT set the PC itself, the PC will advance to subsequent instruction
+        # 3. if the CPU is not halted by a HLT instruction, go to step 1
+        while True:
+            # self.trace()
+
+            # read the address in register `PC` and store that result in our instruction register
+            instruction_register = self.ram_read(self.pc)
+
+            # read adjacent bytes in case the instruction requires them
+            operand_a = self.ram_read(self.pc + 1)
+            operand_b = self.ram_read(self.pc + 2)
+
+            # Then, depending on the value of the opcode, perform the actions
+            # needed for the instruction per the LS-8 spec.
+            if instruction_register == 0b00000001:
+                print("HALTING")
+                exit()
+                break
+            elif instruction_register == 0b10000010:
+                self.reg[operand_a] = operand_b
+            elif instruction_register == 0b01000111:
+                print(f"{self.reg[operand_a]}")
+
+            # update PC to point to the next instruction
+            # number of bytes used by an instruction can be determined from the two high bits (6-7) of opcode
+            self.pc += 1
+
+    @staticmethod
+    def bits(n):
+        while n:
+            b = n & (~n + 1)
+            yield b
+            n ^= b
 
     def ram_read(self, mar):
         """read data from memory

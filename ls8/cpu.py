@@ -23,6 +23,7 @@ DEFAULT_PROGRAM = [
 OP_A = "op_a"
 OP_B = "op_b"
 
+
 class CPU:
     """Main CPU class."""
 
@@ -90,14 +91,15 @@ class CPU:
 
         A helper function to print out the CPU state. call from run() for debugging
         """
+        a, b, c = self.ram_read(self.pc)
 
         print(f"{BColors.BOLD}{BColors.OK_BLUE}TRACE: %02X {BColors.END_}| %02X %02X %02X |{BColors.OK_CYAN}" % (
             self.pc,
             # self.fl,
             # self.ie,
-            self.ram_read(self.pc),
-            self.ram_read(self.pc + 1),
-            self.ram_read(self.pc + 2)
+            a,
+            b,
+            c
         ), end='')
 
         for i in range(8):
@@ -148,19 +150,18 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
+
+        # this loop will be killed with .exit() in `self.handle_hlt()` method
         while True:
-            # .trace() for debugging
+            # .trace for debugging
             self.trace()
             # read the address in PC register and store that result in our "instruction register"
-            ir = self.ram_read(self.pc)
-            # read adjacent bytes in case the instruction requires them
-            op_a = self.ram_read(self.pc + 1)
-            op_b = self.ram_read(self.pc + 2)
-
+            # additionally, read adjacent bytes in case the instruction requires them
+            ir, op_a, op_b = self.ram_read(self.pc)
             # handle the instruction according to its spec
             # update PC to point to the next instruction
-            # PC will increase by 1 at minimum, and 1 additional for each additional byte
-            # the instruction consumes (op_a and op_b)
+            # PC will increase by 1 at minimum, and 1 additional for each additional byte (op_a and op_b)
+            # the instruction consumes... so at least 1, at most 3
             self.pc += 1 + self.branch_table[ir](op_a=op_a, op_b=op_b)
 
     @staticmethod
@@ -175,7 +176,7 @@ class CPU:
 
         :param mar: Memory Address Register, the address from which to read data
         """
-        return self.ram[mar]
+        return tuple(self.ram[mar:mar + 3])
 
     def ram_write(self, mar, mdr):
         """write data to memory

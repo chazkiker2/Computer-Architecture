@@ -30,16 +30,17 @@ class CPU:
     def __init__(self):
         """Construct a new CPU."""
 
-        #
+        # Random Access Memory (256 bytes)
         self.ram = [0 for _ in range(256)]
 
         # 8 general-purpose 8-bit numeric registers R0-R7.
         #
-        # R5 is reserved as the interrupt mask (IM)
-        # R6 is reserved as the interrupt status (IS)
-        # R7 is reserved as the stack pointer (SP)
+        # TODO: R5 is reserved as the interrupt mask (IM)
+        # TODO: R6 is reserved as the interrupt status (IS)
         self.reg = [0 for _ in range(8)]
+        # R7 is reserved as the stack pointer (SP)
         self.sp = self.reg[7] = 0xF4
+
         self.pc = 0
         self.branch_table = {
             HLT: self.handle_hlt,
@@ -82,7 +83,6 @@ class CPU:
             self.reg[reg_a] += self.reg[reg_b]
         elif op == "MUL":
             self.reg[reg_a] *= self.reg[reg_b]
-        # elif op == "SUB": etc
         else:
             raise Exception(f"{BColors.FAIL}Unsupported ALU operation{BColors.END_}")
 
@@ -91,15 +91,13 @@ class CPU:
 
         A helper function to print out the CPU state. call from run() for debugging
         """
-        a, b, c = self.ram_read(self.pc)
+        ir, op_a, op_b = self.ram_read(self.pc)
 
         print(f"{BColors.BOLD}{BColors.OK_BLUE}TRACE: %02X {BColors.END_}| %02X %02X %02X |{BColors.OK_CYAN}" % (
             self.pc,
-            # self.fl,
-            # self.ie,
-            a,
-            b,
-            c
+            ir,
+            op_a,
+            op_b
         ), end='')
 
         for i in range(8):
@@ -107,25 +105,63 @@ class CPU:
 
         print(f"{BColors.END_}")
 
+    def run(self):
+        """Run the CPU."""
+
+        # this loop will be killed with .exit() in `self.handle_hlt()` method
+        while True:
+            # .trace for debugging
+            self.trace()
+            # read the address in PC register and store that result in our "instruction register"
+            # additionally, read adjacent bytes in case the instruction requires them
+            ir, op_a, op_b = self.ram_read(self.pc)
+            # handle the instruction according to its spec
+            # update PC to point to the next instruction
+            # PC will increase by 1 at minimum, and 1 additional for each additional byte (op_a and op_b)
+            # the instruction consumes... so at least 1, at most 3
+            self.pc += 1 + self.branch_table[ir](op_a=op_a, op_b=op_b)
+
+    def ram_read(self, mar):
+        """read data from memory
+
+        :param mar: Memory Address Register, the address from which to read data
+        """
+        return tuple(self.ram[mar:mar + 3])
+
+    def ram_write(self, mar, mdr):
+        """write data to memory
+
+        :param mar: Memory Address Register, the address that is being written to
+        :param mdr: Memory Data Register, the data to write to memory
+        """
+        self.ram[mar] = mdr
+
+    @staticmethod
+    def bits(n):
+        while n:
+            b = n & (~n + 1)
+            yield b
+            n ^= b
+
     # --------------------------------------
     # INSTRUCTION HANDLERS
     # --------------------------------------
     def handle_pop(self, **kwargs):
+        # POP
         op_a = kwargs[OP_A]
-        value = self.ram[self.sp]
-        self.reg[op_a] = value
+        self.reg[op_a] = self.ram[self.sp]
         self.sp += 1
         return 1
 
     def handle_push(self, **kwargs):
+        # PUSH
         op_a = kwargs[OP_A]
         self.sp -= 1
-        value = self.reg[op_a]
-        self.ram[self.sp] = value
+        self.ram[self.sp] = self.reg[op_a]
         return 1
 
     def handle_hlt(self, **kwargs):
-        # HALT
+        # HLT -- HALT the program
         print(f"{BColors.BOLD}{BColors.WARNING}HALTING{BColors.END_}")
         exit()
         return 0
@@ -147,41 +183,3 @@ class CPU:
         op_a, op_b = kwargs[OP_A], kwargs[OP_B]
         self.alu("MUL", op_a, op_b)
         return 2
-
-    def run(self):
-        """Run the CPU."""
-
-        # this loop will be killed with .exit() in `self.handle_hlt()` method
-        while True:
-            # .trace for debugging
-            self.trace()
-            # read the address in PC register and store that result in our "instruction register"
-            # additionally, read adjacent bytes in case the instruction requires them
-            ir, op_a, op_b = self.ram_read(self.pc)
-            # handle the instruction according to its spec
-            # update PC to point to the next instruction
-            # PC will increase by 1 at minimum, and 1 additional for each additional byte (op_a and op_b)
-            # the instruction consumes... so at least 1, at most 3
-            self.pc += 1 + self.branch_table[ir](op_a=op_a, op_b=op_b)
-
-    @staticmethod
-    def bits(n):
-        while n:
-            b = n & (~n + 1)
-            yield b
-            n ^= b
-
-    def ram_read(self, mar):
-        """read data from memory
-
-        :param mar: Memory Address Register, the address from which to read data
-        """
-        return tuple(self.ram[mar:mar + 3])
-
-    def ram_write(self, mar, mdr):
-        """write data to memory
-
-        :param mar: Memory Address Register, the address that is being written to
-        :param mdr: Memory Data Register, the data to write to memory
-        """
-        self.ram[mar] = mdr

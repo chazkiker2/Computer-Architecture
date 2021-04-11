@@ -53,9 +53,6 @@ class CPU:
 
     def load(self, seed_file):
         """Load a program into memory."""
-
-        address = 0
-
         try:
             file_path = f"ls8/{seed_file}"
             with open(file_path) as file:
@@ -72,9 +69,8 @@ class CPU:
             )
             program = DEFAULT_PROGRAM
 
-        for instruction in program:
+        for address, instruction in enumerate(program):
             self.ram[address] = instruction
-            address += 1
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""

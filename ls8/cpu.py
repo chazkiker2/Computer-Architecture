@@ -7,6 +7,8 @@ HLT = 0b00000001
 LDI = 0b10000010
 PRN = 0b01000111
 MUL = 0b10100010
+PUSH = 0b01000101
+POP = 0b01000110
 
 DEFAULT_PROGRAM = [
     # From print8.ls8
@@ -18,6 +20,8 @@ DEFAULT_PROGRAM = [
     0b00000001,  # HLT
 ]
 
+OP_A = "op_a"
+OP_B = "op_b"
 
 class CPU:
     """Main CPU class."""
@@ -25,14 +29,24 @@ class CPU:
     def __init__(self):
         """Construct a new CPU."""
 
+        #
         self.ram = [0 for _ in range(256)]
+
+        # 8 general-purpose 8-bit numeric registers R0-R7.
+        #
+        # R5 is reserved as the interrupt mask (IM)
+        # R6 is reserved as the interrupt status (IS)
+        # R7 is reserved as the stack pointer (SP)
         self.reg = [0 for _ in range(8)]
+        self.sp = self.reg[7] = 0xF4
         self.pc = 0
         self.branch_table = {
             HLT: self.handle_hlt,
             LDI: self.handle_ldi,
             PRN: self.handle_prn,
             MUL: self.handle_mul,
+            POP: self.handle_pop,
+            PUSH: self.handle_push,
         }
 
     def load(self, seed_file):
@@ -92,8 +106,22 @@ class CPU:
         print(f"{BColors.END_}")
 
     # --------------------------------------
-    # OP HANDLERS
+    # INSTRUCTION HANDLERS
     # --------------------------------------
+    def handle_pop(self, **kwargs):
+        op_a = kwargs[OP_A]
+        value = self.ram[self.sp]
+        self.reg[op_a] = value
+        self.sp += 1
+        return 1
+
+    def handle_push(self, **kwargs):
+        op_a = kwargs[OP_A]
+        self.sp -= 1
+        value = self.reg[op_a]
+        self.ram[self.sp] = value
+        return 1
+
     def handle_hlt(self, **kwargs):
         # HALT
         print(f"{BColors.BOLD}{BColors.WARNING}HALTING{BColors.END_}")
@@ -102,38 +130,37 @@ class CPU:
 
     def handle_ldi(self, **kwargs):
         # LDI
-        op_a, op_b = kwargs["op_a"], kwargs["op_b"]
+        op_a, op_b = kwargs[OP_A], kwargs[OP_B]
         self.reg[op_a] = op_b
         return 2
 
     def handle_prn(self, **kwargs):
         # PRN
-        op_a = kwargs["op_a"]
+        op_a = kwargs[OP_A]
         print(f"{self.reg[op_a]}")
         return 1
 
     def handle_mul(self, **kwargs):
         # MUL
-        op_a, op_b = kwargs["op_a"], kwargs["op_b"]
+        op_a, op_b = kwargs[OP_A], kwargs[OP_B]
         self.alu("MUL", op_a, op_b)
         return 2
 
     def run(self):
         """Run the CPU."""
-        # execution sequence
-        # 1. instruction pointed to by PC is fetched from RAM, decoded, executed
-        # 2. if the instruction does NOT set the PC itself, the PC will advance to subsequent instruction
-        # 3. if the CPU is not halted by a HLT instruction, go to step 1
         while True:
+            # .trace() for debugging
             self.trace()
-            # read the address in register `PC` and store that result in our instruction register
+            # read the address in PC register and store that result in our "instruction register"
             ir = self.ram_read(self.pc)
             # read adjacent bytes in case the instruction requires them
             op_a = self.ram_read(self.pc + 1)
             op_b = self.ram_read(self.pc + 2)
 
-            # handle the instruction according to the LS-8 spec
+            # handle the instruction according to its spec
             # update PC to point to the next instruction
+            # PC will increase by 1 at minimum, and 1 additional for each additional byte
+            # the instruction consumes (op_a and op_b)
             self.pc += 1 + self.branch_table[ir](op_a=op_a, op_b=op_b)
 
     @staticmethod

@@ -3,6 +3,11 @@
 import sys
 from utils import BColors
 
+HLT = 0b00000001
+LDI = 0b10000010
+PRN = 0b01000111
+MUL = 0b10100010
+
 
 class CPU:
     """Main CPU class."""
@@ -12,6 +17,12 @@ class CPU:
         self.ram = [0 for _ in range(256)]
         self.reg = [0 for _ in range(8)]
         self.pc = 0
+        self.branch_table = {
+            HLT: self.handle_hlt,
+            LDI: self.handle_ldi,
+            PRN: self.handle_prn,
+            MUL: self.handle_mul,
+        }
 
     def load(self, seed_file):
         """Load a program into memory."""
@@ -45,8 +56,6 @@ class CPU:
             self.ram[address] = instruction
             address += 1
 
-        # print(f"{''.join(f'({i}:{v})' for i,v in enumerate(self.ram))}")
-
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
@@ -78,6 +87,30 @@ class CPU:
 
         print(f"{BColors.END_}")
 
+    # --------------------------------------
+    # OP HANDLERS
+    # --------------------------------------
+    def handle_hlt(self, op_a, op_b):
+        # HALT
+        print(f"{BColors.BOLD}{BColors.WARNING}HALTING{BColors.END_}")
+        exit()
+        return 0
+
+    def handle_ldi(self, op_a, op_b):
+        # LDI
+        self.reg[op_a] = op_b
+        return 2
+
+    def handle_prn(self, op_a, op_b):
+        # PRN
+        print(f"{self.reg[op_a]}")
+        return 1
+
+    def handle_mul(self, op_a, op_b):
+        # MUL
+        self.alu("MUL", op_a, op_b)
+        return 2
+
     def run(self):
         """Run the CPU."""
         # execution sequence
@@ -88,36 +121,16 @@ class CPU:
             self.trace()
 
             # read the address in register `PC` and store that result in our instruction register
-            instruction_register = self.ram_read(self.pc)
+            ir = self.ram_read(self.pc)
 
             # read adjacent bytes in case the instruction requires them
-            operand_a = self.ram_read(self.pc + 1)
-            operand_b = self.ram_read(self.pc + 2)
-
-            next_pc_inc = 1
+            op_a = self.ram_read(self.pc + 1)
+            op_b = self.ram_read(self.pc + 2)
 
             # Then, depending on the value of the opcode, perform the actions
             # needed for the instruction per the LS-8 spec.
-            if instruction_register == 0b00000001:
-                # HALT
-                print(f"{BColors.BOLD}{BColors.WARNING}HALTING{BColors.END_}")
-                exit()
-                break
-            elif instruction_register == 0b10000010:
-                # LDI
-                self.reg[operand_a] = operand_b
-                next_pc_inc += 2
-            elif instruction_register == 0b01000111:
-                # PRN
-                print(f"{self.reg[operand_a]}")
-                next_pc_inc += 1
-            elif instruction_register == 0b10100010:
-                # MUL
-                self.alu("MUL", operand_a, operand_b)
-                next_pc_inc += 2
-
             # update PC to point to the next instruction
-            self.pc += next_pc_inc
+            self.pc += 1 + self.branch_table[ir](op_a=op_a, op_b=op_b)
 
     @staticmethod
     def bits(n):

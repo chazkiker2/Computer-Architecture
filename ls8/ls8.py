@@ -5,6 +5,7 @@
 import sys
 from cpu import *
 
+
 def main():
     cpu = CPU()
 
@@ -14,9 +15,9 @@ def main():
         seed_file = "examples/print8.ls8"
         print(f"No argument given, defaulting to {seed_file}")
 
-
     cpu.load(seed_file)
     cpu.run()
+
 
 if __name__ == '__main__':
     main()

@@ -1,6 +1,7 @@
 """CPU functionality."""
 
 import sys
+from utils import BColors
 
 
 class CPU:
@@ -18,11 +19,18 @@ class CPU:
         address = 0
 
         try:
-            with open(f"ls8/{seed_file}") as file:
+            file_path = f"ls8/{seed_file}"
+            with open(file_path) as file:
+
+                print(
+                    f"{BColors.BOLD}{BColors.OK_GREEN}"
+                    f"Loading program from {BColors.UNDERLINE}{BColors.OK_CYAN}{file_path}{BColors.END_}"
+                )
+
                 read_file = file.readlines()
                 program = [int(line.split()[0], 2) for line in read_file]
         except IOError:
-            print("An error occurred! Defaulting to 'print8.ls8'")
+            print(f"{BColors.FAIL}An error occurred! Defaulting to 'print8.ls8'{BColors.END_}")
             program = [
                 # From print8.ls8
                 0b10000010,  # LDI R0,8
@@ -48,7 +56,7 @@ class CPU:
             self.reg[reg_a] *= self.reg[reg_b]
         # elif op == "SUB": etc
         else:
-            raise Exception("Unsupported ALU operation")
+            raise Exception(f"{BColors.FAIL}Unsupported ALU operation{BColors.END_}")
 
     def trace(self):
         """print the CPU state
@@ -56,7 +64,7 @@ class CPU:
         A helper function to print out the CPU state. call from run() for debugging
         """
 
-        print(f"TRACE: %02X | %02X %02X %02X |" % (
+        print(f"{BColors.BOLD}{BColors.OK_BLUE}TRACE: %02X {BColors.END_}| %02X %02X %02X |{BColors.OK_CYAN}" % (
             self.pc,
             # self.fl,
             # self.ie,
@@ -68,7 +76,7 @@ class CPU:
         for i in range(8):
             print(" %02X" % self.reg[i], end='')
 
-        print()
+        print(f"{BColors.END_}")
 
     def run(self):
         """Run the CPU."""
@@ -77,7 +85,7 @@ class CPU:
         # 2. if the instruction does NOT set the PC itself, the PC will advance to subsequent instruction
         # 3. if the CPU is not halted by a HLT instruction, go to step 1
         while True:
-            # self.trace()
+            self.trace()
 
             # read the address in register `PC` and store that result in our instruction register
             instruction_register = self.ram_read(self.pc)
@@ -92,7 +100,7 @@ class CPU:
             # needed for the instruction per the LS-8 spec.
             if instruction_register == 0b00000001:
                 # HALT
-                print("HALTING")
+                print(f"{BColors.BOLD}{BColors.WARNING}HALTING{BColors.END_}")
                 exit()
                 break
             elif instruction_register == 0b10000010:

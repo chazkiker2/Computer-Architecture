@@ -11,6 +11,19 @@ PUSH = 0b01000101
 POP = 0b01000110
 CALL = 0b01010000
 RET = 0b00010001
+ADD = 0b10100000
+
+operations_string = f"""
+HLT = 0b00000001 = {HLT}
+LDI = 0b10000010 = {LDI}
+PRN = 0b01000111 = {PRN}
+MUL = 0b10100010 = {MUL}
+PUSH = 0b01000101 = {PUSH}
+POP = 0b01000110 = {POP}
+CALL = 0b01010000 = {CALL}
+RET = 0b00010001 = {RET}
+ADD = 0b10100000 = {ADD}
+"""
 
 LOG_ADD = "ADD"
 LOG_MUL = "MUL"
@@ -46,7 +59,6 @@ class CPU:
         self.reg = [0 for _ in range(8)]
         # R7 is reserved as the stack pointer (SP)
         self.sp = self.reg[7] = 0xF4
-
         self.pc = 0
         self.branch_table = {
             HLT: self.handle_hlt,
@@ -57,6 +69,7 @@ class CPU:
             PUSH: self.handle_push,
             CALL: self.handle_call,
             RET: self.handle_ret,
+            ADD: self.handle_add,
         }
 
     def load(self, seed_file):
@@ -69,7 +82,7 @@ class CPU:
                     f"Loading program from {BColors.UNDERLINE}{BColors.OK_CYAN}{file_path}{BColors.END_}"
                 )
 
-                program = [int(line.split("#")[0].strip(), 2) for line in file.readlines() if line[0] != "#"]
+                program = [int(line.split()[0], 2) for line in file.readlines() if line[0] != "#"]
         except IOError:
             print(
                 f"{BColors.FAIL}"
@@ -86,7 +99,6 @@ class CPU:
 
         Arithmetic and Logic Unit
         """
-
         if op == LOG_ADD:
             self.reg[reg_a] += self.reg[reg_b]
         elif op == LOG_MUL:
@@ -119,7 +131,8 @@ class CPU:
         # this loop will be killed with .exit() in CPU::handle_hlt() method
         while True:
             # .trace for debugging
-            self.trace()
+            # self.trace()
+
             # read the address in PC register and store that result in our "instruction register"
             # additionally, read adjacent bytes in case the instruction requires them
             ir, op_a, op_b = self.ram_read(self.pc)
@@ -127,7 +140,9 @@ class CPU:
             # update PC to point to the next instruction
             # PC will increase by 1 at minimum, and 1 additional for each additional byte (op_a and op_b)
             # the instruction consumes... so at least 1, at most 3
-            self.pc += 1 + self.branch_table[ir](op_a=op_a, op_b=op_b)
+            out = self.branch_table[ir](op_a=op_a, op_b=op_b)
+            if out:
+                self.pc += 1 + out
 
     def ram_read(self, mar):
         """read data from memory
@@ -154,26 +169,32 @@ class CPU:
     # --------------------------------------
     # INSTRUCTION HANDLERS
     # --------------------------------------
+    def handle_add(self, **kwargs):
+        self.alu(LOG_ADD, kwargs[OP_A], kwargs[OP_B])
+        return 2
+
     def handle_ret(self, **kwargs):
-        # Return from subroutine.
-        #
-        # Pop the value from the top of the stack and store it in the PC.
+        # return from subroutine
+        # pop the top of stack and store it in our PC
         self.pc = self.ram[self.sp]
-        self.sp -= 1
-        return -1
+        # increase sp b/c we're popping
+        self.sp += 1
 
     def handle_call(self, **kwargs):
-        # Calls a subroutine (function) at the address stored in the register.
-        #
-        # The address of the instruction directly after CALL is pushed onto the stack. This allows us to
-        # return to where we left off when the subroutine finishes executing.
-        #
-        # The PC is set to the address stored in the given register. We jump to that location in RAM and
-        # execute the first instruction in the subroutine. The PC can move forward or backwards from
-        # its current location.
-        op_a = kwargs[OP_A]
-        self.pc = self.reg[op_a]
-        return -1
+        """calls a subroutine at the address stored in the register"""
+
+        # push the address of the instruction directly after CALL onto the stack
+        # we will return here when subroutine finishes execution
+
+        # decrease sp b/c we're pushing
+        self.sp -= 1
+        self.ram[self.sp] = self.pc + 2
+
+        # The PC is set to the address stored in the given register.
+        # We jump to that location in RAM and execute the first instruction in the subroutine.
+        # The PC can move forward or backwards from its current location.
+        register_num = kwargs[OP_A]
+        self.pc = self.reg[register_num]
 
     def handle_pop(self, **kwargs):
         # POP

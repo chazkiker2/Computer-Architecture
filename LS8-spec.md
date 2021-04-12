@@ -207,7 +207,7 @@ Machine code values shown in both binary and hexadecimal.
 - [ ] [OR](#OR)
 - [x] [POP](#POP)
 - [ ] [PRA](#PRA)
-- [ ] [PRN](#PRN)
+- [x] [PRN](#PRN)
 - [x] [PUSH](#PUSH)
 - [ ] [RET](#RET)
 - [ ] [SHL](#SHL)

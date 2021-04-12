@@ -52,13 +52,19 @@ class CPU:
         self.ram = [0 for _ in range(256)]
 
         # 8 general-purpose 8-bit numeric registers R0-R7.
-        #
-        # TODO: R5 is reserved as the interrupt mask (IM)
-        # TODO: R6 is reserved as the interrupt status (IS)
         self.reg = [0 for _ in range(8)]
+
+        # TODO: R5 is reserved as the interrupt mask (IM)
+        # self.irr_m = self.reg[5] = 0
+        # TODO: R6 is reserved as the interrupt status (IS)
+        # self.irr_s = self.reg[6] = 0
+
         # R7 is reserved as the stack pointer (SP)
         self.sp = self.reg[7] = 0xF4
+        # program count
         self.pc = 0
+
+        # branch table for handling various instructions
         self.branch_table = {
             HLT: self.handle_hlt,
             LDI: self.handle_ldi,
@@ -126,13 +132,15 @@ class CPU:
 
         # this loop will be killed with .exit() in CPU::handle_hlt() method
         while True:
-            # .trace for debugging
+            # uncomment the call to .trace below for debugging
             # self.trace()
 
             # read the address in PC register and store that result in our "instruction register"
             # additionally, read adjacent bytes in case the instruction requires them
             ir, op_a, op_b = self.ram_read(self.pc)
             # handle the instruction according to its spec
+            # returns the number of additional bytes consumed or None
+            # if the operation manipulates self.pc directly
             out = self.branch_table[ir](op_a=op_a, op_b=op_b)
             if out:
                 # update PC to point to the next instruction
@@ -144,6 +152,7 @@ class CPU:
         """read data from memory
 
         :param mar: Memory Address Register, the address from which to read data
+        :returns: a tuple with the data in the given MAR, as well as the two adjacent bytes
         """
         return tuple(self.ram[mar:mar + 3])
 
@@ -157,6 +166,7 @@ class CPU:
 
     @staticmethod
     def bits(n):
+        """return a generator of only set bits (bits with a value of 1) from the bitset"""
         while n:
             b = n & (~n + 1)
             yield b
@@ -165,11 +175,7 @@ class CPU:
     # --------------------------------------
     # INSTRUCTION HANDLERS
     # --------------------------------------
-    def handle_add(self, **kwargs):
-        self.alu(LOG_ADD, kwargs[OP_A], kwargs[OP_B])
-        return 2
-
-    def handle_ret(self, **kwargs):
+    def handle_ret(self, **_):
         # return from subroutine
         # pop the top of stack and store it in our PC
         self.pc = self.ram[self.sp]
@@ -179,6 +185,7 @@ class CPU:
     def handle_call(self, **kwargs):
         """calls a subroutine at the address stored in the register"""
 
+        register = kwargs[OP_A]
         # push the address of the instruction directly after CALL onto the stack
         # we will return here when subroutine finishes execution
 
@@ -189,8 +196,7 @@ class CPU:
         # The PC is set to the address stored in the given register.
         # We jump to that location in RAM and execute the first instruction in the subroutine.
         # The PC can move forward or backwards from its current location.
-        register_num = kwargs[OP_A]
-        self.pc = self.reg[register_num]
+        self.pc = self.reg[register]
 
     def handle_pop(self, **kwargs):
         # POP
@@ -201,31 +207,59 @@ class CPU:
 
     def handle_push(self, **kwargs):
         # PUSH
-        op_a = kwargs[OP_A]
+        register = kwargs[OP_A]
         self.sp -= 1
-        self.ram[self.sp] = self.reg[op_a]
+        self.ram[self.sp] = self.reg[register]
         return 1
 
-    def handle_hlt(self, **kwargs):
-        # HLT -- HALT the program
+    def handle_ldi(self, **kwargs):
+        """LDI -- set the value of a register to an integer
+
+        LDI register immediate: register = immediate
+        """
+        # LDI
+        register, immediate = kwargs[OP_A], kwargs[OP_B]
+        self.reg[register] = immediate
+        return 2
+
+    def handle_prn(self, **kwargs):
+        """PRN -- print numeric value in the given register
+
+        Print to the console the decimal integer value that is stored in a given register
+
+        PRN register: prints decimal representation of the value stored in register
+        """
+        register = kwargs[OP_A]
+        print(f"{self.reg[register]}")
+        return 1
+
+    @staticmethod
+    def handle_hlt(**_):
+        """HLT -- Halt the CPU (and exit the emulator)"""
         print(f"{BColors.BOLD}{BColors.WARNING}HALTING{BColors.END_}")
         exit()
         return 0
 
-    def handle_ldi(self, **kwargs):
-        # LDI
-        op_a, op_b = kwargs[OP_A], kwargs[OP_B]
-        self.reg[op_a] = op_b
+    # --------------------------------------
+    # HANDLERS FOR ALU OPERATIONS
+    # --------------------------------------
+    def handle_mul(self, **kwargs):
+        """MUL -- multiply the values in two registers together and store the result in registerA
+
+        this instruction is handled by the ALU
+        MUL registerA registerB: registerA = registerA * registerB
+        """
+
+        register_a, register_b = kwargs[OP_A], kwargs[OP_B]
+        self.alu(LOG_MUL, register_a, register_b)
         return 2
 
-    def handle_prn(self, **kwargs):
-        # PRN
-        op_a = kwargs[OP_A]
-        print(f"{self.reg[op_a]}")
-        return 1
+    def handle_add(self, **kwargs):
+        """ADD -- add the value in two registers and store the result in registerA
 
-    def handle_mul(self, **kwargs):
-        # MUL
-        op_a, op_b = kwargs[OP_A], kwargs[OP_B]
-        self.alu(LOG_MUL, op_a, op_b)
+        this instruction is handled by the ALU
+        ADD registerA registerB: registerA = registerA + registerB
+        """
+        register_a, register_b = kwargs[OP_A], kwargs[OP_B]
+        self.alu(LOG_ADD, register_a, register_b)
         return 2

@@ -14,15 +14,15 @@ RET = 0b00010001
 ADD = 0b10100000
 
 operations_string = f"""
-HLT = 0b00000001 = {HLT}
-LDI = 0b10000010 = {LDI}
-PRN = 0b01000111 = {PRN}
-MUL = 0b10100010 = {MUL}
-PUSH = 0b01000101 = {PUSH}
-POP = 0b01000110 = {POP}
-CALL = 0b01010000 = {CALL}
-RET = 0b00010001 = {RET}
-ADD = 0b10100000 = {ADD}
+HLT = {bin(HLT)} = {HLT}
+LDI = {bin(LDI)} = {LDI}
+PRN = {bin(PRN)} = {PRN}
+MUL = {bin(MUL)} = {MUL}
+PUSH = {bin(PUSH)} = {PUSH}
+POP = {bin(POP)} = {POP}
+CALL = {bin(CALL)} = {CALL}
+RET = {bin(RET)} = {RET}
+ADD = {bin(ADD)} = {ADD}
 """
 
 LOG_ADD = "ADD"
@@ -81,7 +81,6 @@ class CPU:
                     f"{BColors.BOLD}{BColors.OK_GREEN}"
                     f"Loading program from {BColors.UNDERLINE}{BColors.OK_CYAN}{file_path}{BColors.END_}"
                 )
-
                 program = [int(line.split()[0], 2) for line in file.readlines() if line[0] != "#"]
         except IOError:
             print(
@@ -95,10 +94,8 @@ class CPU:
             self.ram[address] = instruction
 
     def alu(self, op, reg_a, reg_b):
-        """ALU operations.
+        """ALU operations.Arithmetic and Logic Unit"""
 
-        Arithmetic and Logic Unit
-        """
         if op == LOG_ADD:
             self.reg[reg_a] += self.reg[reg_b]
         elif op == LOG_MUL:
@@ -137,11 +134,11 @@ class CPU:
             # additionally, read adjacent bytes in case the instruction requires them
             ir, op_a, op_b = self.ram_read(self.pc)
             # handle the instruction according to its spec
-            # update PC to point to the next instruction
-            # PC will increase by 1 at minimum, and 1 additional for each additional byte (op_a and op_b)
-            # the instruction consumes... so at least 1, at most 3
             out = self.branch_table[ir](op_a=op_a, op_b=op_b)
             if out:
+                # update PC to point to the next instruction
+                # PC will increase by 1 at minimum, and 1 additional for each additional byte (op_a and op_b)
+                # the instruction consumes... so at least 1, at most 3
                 self.pc += 1 + out
 
     def ram_read(self, mar):

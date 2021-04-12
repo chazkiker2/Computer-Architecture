@@ -1,6 +1,5 @@
 """CPU functionality."""
 
-import sys
 from utils import BColors
 
 HLT = 0b00000001

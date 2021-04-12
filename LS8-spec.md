@@ -179,6 +179,43 @@ Glossary:
 
 Machine code values shown in both binary and hexadecimal.
 
+### ToC
+
+- [ADD](#ADD)
+- [AND](#AND)
+- [CALL register](#call-register)
+- [CMP](#CMP)
+- [DEC](#DEC)
+- [DIV](#DIV)
+- [HLT](#HLT)
+- [INC](#INC)
+- [INT](#INT)
+- [IRET](#IRET)
+- [JEQ](#JEQ)
+- [JGE](#JGE)
+- [JGT](#JGT)
+- [JLE](#JLE)
+- [JLT](#JLT)
+- [JMP](#JMP)
+- [JNE](#JNE)
+- [LD](#LD)
+- [LDI](#LDI)
+- [MOD](#MOD)
+- [MUL](#MUL)
+- [NOP](#NOP)
+- [NOT](#NOT)
+- [OR](#OR)
+- [POP](#POP)
+- [PRA](#PRA)
+- [PRN](#PRN)
+- [PUSH](#PUSH)
+- [RET](#RET)
+- [SHL](#SHL)
+- [SHR](#SHR)
+- [ST](#ST)
+- [SUB](#SUB)
+- [XOR](#XOR)
+
 ### ADD
 
 *This is an instruction handled by the ALU.*

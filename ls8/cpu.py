@@ -9,6 +9,12 @@ PRN = 0b01000111
 MUL = 0b10100010
 PUSH = 0b01000101
 POP = 0b01000110
+CALL = 0b01010000
+RET = 0b00010001
+
+LOG_ADD = "ADD"
+LOG_MUL = "MUL"
+LOG_XOR = "XOR"
 
 DEFAULT_PROGRAM = [
     # From print8.ls8
@@ -49,6 +55,8 @@ class CPU:
             MUL: self.handle_mul,
             POP: self.handle_pop,
             PUSH: self.handle_push,
+            CALL: self.handle_call,
+            RET: self.handle_ret,
         }
 
     def load(self, seed_file):
@@ -60,7 +68,8 @@ class CPU:
                     f"{BColors.BOLD}{BColors.OK_GREEN}"
                     f"Loading program from {BColors.UNDERLINE}{BColors.OK_CYAN}{file_path}{BColors.END_}"
                 )
-                program = [int(line.split()[0], 2) for line in file.readlines()]
+
+                program = [int(line.split("#")[0].strip(), 2) for line in file.readlines() if line[0] != "#"]
         except IOError:
             print(
                 f"{BColors.FAIL}"
@@ -73,11 +82,14 @@ class CPU:
             self.ram[address] = instruction
 
     def alu(self, op, reg_a, reg_b):
-        """ALU operations."""
+        """ALU operations.
 
-        if op == "ADD":
+        Arithmetic and Logic Unit
+        """
+
+        if op == LOG_ADD:
             self.reg[reg_a] += self.reg[reg_b]
-        elif op == "MUL":
+        elif op == LOG_MUL:
             self.reg[reg_a] *= self.reg[reg_b]
         else:
             raise Exception(f"{BColors.FAIL}Unsupported ALU operation{BColors.END_}")
@@ -142,6 +154,27 @@ class CPU:
     # --------------------------------------
     # INSTRUCTION HANDLERS
     # --------------------------------------
+    def handle_ret(self, **kwargs):
+        # Return from subroutine.
+        #
+        # Pop the value from the top of the stack and store it in the PC.
+        self.pc = self.ram[self.sp]
+        self.sp -= 1
+        return -1
+
+    def handle_call(self, **kwargs):
+        # Calls a subroutine (function) at the address stored in the register.
+        #
+        # The address of the instruction directly after CALL is pushed onto the stack. This allows us to
+        # return to where we left off when the subroutine finishes executing.
+        #
+        # The PC is set to the address stored in the given register. We jump to that location in RAM and
+        # execute the first instruction in the subroutine. The PC can move forward or backwards from
+        # its current location.
+        op_a = kwargs[OP_A]
+        self.pc = self.reg[op_a]
+        return -1
+
     def handle_pop(self, **kwargs):
         # POP
         op_a = kwargs[OP_A]
@@ -177,5 +210,5 @@ class CPU:
     def handle_mul(self, **kwargs):
         # MUL
         op_a, op_b = kwargs[OP_A], kwargs[OP_B]
-        self.alu("MUL", op_a, op_b)
+        self.alu(LOG_MUL, op_a, op_b)
         return 2

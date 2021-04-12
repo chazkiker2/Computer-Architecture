@@ -192,11 +192,13 @@ class CPU:
     #  1. Method name conventions -- each handler's method name should...
     #    a. begin with the prefix `handle_`
     #    b. finish with the lowercase version of its associated instruction key (i.e., the instruction handler
-    #    for the halt command (HLT) would be called handle_hlt)
+    #    for the halt command `HLT` would be called `handle_hlt`)
     #
     #  2. Each handler should ALWAYS take keyword arguments (kwargs)
-    #    a. If the kwargs are used, name them **kwargs
-    #    b. If the kwargs are UNUSED, name them with the underscore `def handle_example(self, **_):`
+    #    a. If the kwargs are used, name them `**kwargs`, like so:
+    #       `def handler_example(self, **kwargs):`
+    #    b. If the kwargs are UNUSED, name them with the underscore, like so:
+    #       `def handler_example(self, **_):`
     #
     #    # EXAMPLE
     #    ```
@@ -205,7 +207,7 @@ class CPU:
     #    # as such, the method would take in `**kwargs` as a parameter and USE them
     #    def handle_ldi(self, **kwargs):
     #       pass  # do something with kwargs
-
+    #
     #    # The RET instruction, however, does not require any additional bytes of information
     #    # thus, the method would take in `**_` as a parameter to allow the passing in of kwargs
     #    # but simultaneously showcase that we are not USING them in this method
@@ -266,8 +268,8 @@ class CPU:
 
     def handle_pop(self, **kwargs):
         """POP -- pop the value at the top of the stack into the given register"""
-        op_a = kwargs[OP_A]
-        self.reg[op_a] = self.ram[self.sp]
+        register = kwargs[OP_A]
+        self.reg[register] = self.ram[self.sp]
         self.sp += 1
         return 1
 
@@ -300,9 +302,10 @@ class CPU:
 
     @staticmethod
     def handle_hlt(**_):
-        """HLT -- Halt the CPU (and exit the emulator)"""
+        """HLT -- Halt the CPU and exit the emulator"""
         print(f"{BColors.BOLD}{BColors.WARNING}HALTING{BColors.END_}")
         exit()
+        # though this return statement will go unused, figured I'd keep it for consistency
         return 0
 
     # --------------------------------------

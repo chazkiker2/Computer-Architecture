@@ -85,7 +85,7 @@ class CPU:
     def trace(self):
         """print the CPU state
 
-        A helper function to print out the CPU state. call from run() for debugging
+        A helper function to print out the CPU state. call from CPU::run() for debugging
         """
         ir, op_a, op_b = self.ram_read(self.pc)
 
@@ -104,7 +104,7 @@ class CPU:
     def run(self):
         """Run the CPU."""
 
-        # this loop will be killed with .exit() in `self.handle_hlt()` method
+        # this loop will be killed with .exit() in CPU::handle_hlt() method
         while True:
             # .trace for debugging
             self.trace()

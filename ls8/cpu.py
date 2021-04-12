@@ -24,9 +24,12 @@ RET = {bin(RET)} = {RET}
 ADD = {bin(ADD)} = {ADD}
 """
 
-LOG_ADD = "ADD"
-LOG_MUL = "MUL"
-LOG_XOR = "XOR"
+
+class AluOperations:
+    ADD = "ADD"
+    MUL = "MUL"
+    XOR = "XOR"
+
 
 DEFAULT_PROGRAM = [
     # From print8.ls8
@@ -99,11 +102,11 @@ class CPU:
             self.ram[address] = instruction
 
     def alu(self, op, reg_a, reg_b):
-        """ALU operations.Arithmetic and Logic Unit"""
+        """ALU operations. Arithmetic and Logic Unit"""
 
-        if op == LOG_ADD:
+        if op == AluOperations.ADD:
             self.reg[reg_a] += self.reg[reg_b]
-        elif op == LOG_MUL:
+        elif op == AluOperations.MUL:
             self.reg[reg_a] *= self.reg[reg_b]
         else:
             raise Exception(f"{BColors.FAIL}Unsupported ALU operation{BColors.END_}")
@@ -132,16 +135,17 @@ class CPU:
 
         # this loop will be killed with .exit() in CPU::handle_hlt() method
         while True:
-            # uncomment the call to .trace below for debugging
+            # uncomment the call to self.trace() below for debugging
             # self.trace()
 
             # read the address in PC register and store that result in our "instruction register"
             # additionally, read adjacent bytes in case the instruction requires them
             ir, op_a, op_b = self.ram_read(self.pc)
             # handle the instruction according to its spec
-            # returns the number of additional bytes consumed or None
-            # if the operation manipulates self.pc directly
+            # returns the number of additional bytes consumed or `None` if the operation manipulates self.pc directly
             out = self.branch_table[ir](op_a=op_a, op_b=op_b)
+            # check if operation manipulated self.pc directly... if `out` is not None,
+            # then we'll increment `self.pc` accordingly
             if out:
                 # update PC to point to the next instruction
                 # PC will increase by 1 at minimum, and 1 additional for each additional byte (op_a and op_b)
@@ -176,8 +180,9 @@ class CPU:
     # INSTRUCTION HANDLERS
     # --------------------------------------
     def handle_ret(self, **_):
-        # return from subroutine
+        """return from the subroutine and pick up where we left off execution"""
         # pop the top of stack and store it in our PC
+        # this resumes executing where we left off
         self.pc = self.ram[self.sp]
         # increase sp b/c we're popping
         self.sp += 1
@@ -199,14 +204,14 @@ class CPU:
         self.pc = self.reg[register]
 
     def handle_pop(self, **kwargs):
-        # POP
+        """POP -- pop the value at the top of the stack into the given register"""
         op_a = kwargs[OP_A]
         self.reg[op_a] = self.ram[self.sp]
         self.sp += 1
         return 1
 
     def handle_push(self, **kwargs):
-        # PUSH
+        """PUSH -- push the value in the given register onto the stack"""
         register = kwargs[OP_A]
         self.sp -= 1
         self.ram[self.sp] = self.reg[register]
@@ -217,7 +222,6 @@ class CPU:
 
         LDI register immediate: register = immediate
         """
-        # LDI
         register, immediate = kwargs[OP_A], kwargs[OP_B]
         self.reg[register] = immediate
         return 2
@@ -251,7 +255,7 @@ class CPU:
         """
 
         register_a, register_b = kwargs[OP_A], kwargs[OP_B]
-        self.alu(LOG_MUL, register_a, register_b)
+        self.alu(AluOperations.MUL, register_a, register_b)
         return 2
 
     def handle_add(self, **kwargs):
@@ -261,5 +265,5 @@ class CPU:
         ADD registerA registerB: registerA = registerA + registerB
         """
         register_a, register_b = kwargs[OP_A], kwargs[OP_B]
-        self.alu(LOG_ADD, register_a, register_b)
+        self.alu(AluOperations.ADD, register_a, register_b)
         return 2

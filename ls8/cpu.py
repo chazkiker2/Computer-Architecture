@@ -176,9 +176,70 @@ class CPU:
             yield b
             n ^= b
 
-    # --------------------------------------
+    # ==================================================================================================
     # INSTRUCTION HANDLERS
-    # --------------------------------------
+    # ==================================================================================================
+    #
+    # Every following method is an instruction handler.
+    #
+    # Methods that deal with the ALU are grouped at the bottom under the
+    # comment that says "HANDLERS FOR ALU OPERATIONS"
+    #
+    # RULES & CONVENTIONS
+    #
+    # Each instruction handler should always abide by the following rules:
+    #
+    #  1. Method name conventions -- each handler's method name should...
+    #    a. begin with the prefix `handle_`
+    #    b. finish with the lowercase version of its associated instruction key (i.e., the instruction handler
+    #    for the halt command (HLT) would be called handle_hlt)
+    #
+    #  2. Each handler should ALWAYS take keyword arguments (kwargs)
+    #    a. If the kwargs are used, name them **kwargs
+    #    b. If the kwargs are UNUSED, name them with the underscore `def handle_example(self, **_):`
+    #
+    #      # EXAMPLE
+    #      ```
+    #      # The LDI instruction takes in two additional bytes of information
+    #      # which represent (1) a register and (2) an immediate value
+    #      # as such, the method would take in `**kwargs` as a parameter and USE them
+    #      def handle_ldi(self, **kwargs):
+    #         pass  # do something with kwargs
+    #
+    #      # The RET instruction, however, does not require any additional bytes of information
+    #      # thus, the method would take in `**_` as a parameter to allow the passing in of kwargs
+    #      # but simultaneously showcase that we are not USING them in this method
+    #      def handle_ret(self, **_):
+    #          pass  # do something without use of keyword arguments
+    #      ```
+    #
+    #  3. The very first line should be CONSUMING the `kwargs` parameter if kwargs are consumed. The constants
+    #    OP_A="op_a" and OP_B="op_b" are defined for taking OP_A and OP_B from kwargs. These are the two additional
+    #    bytes that an instruction may depend on. The first line of code in any handler should pull these variables
+    #    out of kwargs and store them in a more aptly named variable.
+    #
+    #      # EXAMPLE
+    #      ```
+    #      # The LDI instruction takes in two additional bytes of information
+    #      # which represent (1) a register and (2) an immediate value
+    #      def handle_ldi(self, **kwargs):
+    #         # as such, we should make it clear what these keyword arguments ARE
+    #         # by storing them in more clear variable names
+    #         register, immediate = kwargs[OP_A], kwargs[OP_B]
+    #         pass  # do something with `register` and `immediate`
+    #      ```
+    #
+    #  4. Each handler should return either an integer number or `None`
+    #    a. If the handler directly manipulates the program count `self.pc` property, then return `None`
+    #       Note, this can be an implicit return of `None` by omitting the return statement altogether.
+    #    b. Otherwise, the handler should return the number of ADDITIONAL BYTES consumed. This is explicitly
+    #       and directly correlated to the number of kwargs a handler consumes.
+    #       For example: The LDI instruction consumes two additional bytes of information (1) the register and
+    #       (2) the immediate value. As such, it takes in `**kwargs` as a parameter, consumes those kwargs
+    #       `register, immediate = kwargs[OP_A], kwargs[OP_B]` as the first line of code in the method, and so
+    #       should finally `return 2` to communicate that this handler consumed TWO ADDITIONAL bytes of information
+    #
+    # ==================================================================================================
     def handle_ret(self, **_):
         """return from the subroutine and pick up where we left off execution"""
         # pop the top of stack and store it in our PC

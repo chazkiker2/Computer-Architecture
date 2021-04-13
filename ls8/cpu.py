@@ -155,7 +155,9 @@ class CPU:
     def __init__(self):
         """Construct a new CPU."""
 
+        # arithmetic & logic unit
         self.alu = Alu()
+
         # Random Access Memory (256 bytes)
         self.ram = [0 for _ in range(256)]
 

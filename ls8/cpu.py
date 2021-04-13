@@ -2,6 +2,19 @@
 
 from utils import BColors
 
+DEFAULT_PROGRAM = [
+    # From print8.ls8
+    0b10000010,  # LDI R0,8
+    0b00000000,
+    0b00001000,
+    0b01000111,  # PRN R0
+    0b00000000,
+    0b00000001,  # HLT
+]
+
+OP_A = "op_a"
+OP_B = "op_b"
+
 HLT = 0b00000001
 LDI = 0b10000010
 PRN = 0b01000111
@@ -135,19 +148,6 @@ class Alu:
     def alu_or(a, b):
         a |= b
 
-DEFAULT_PROGRAM = [
-    # From print8.ls8
-    0b10000010,  # LDI R0,8
-    0b00000000,
-    0b00001000,
-    0b01000111,  # PRN R0
-    0b00000000,
-    0b00000001,  # HLT
-]
-
-OP_A = "op_a"
-OP_B = "op_b"
-
 
 class CPU:
     """Main CPU class."""
@@ -182,31 +182,6 @@ class CPU:
             CALL: self.handle_call,
             RET: self.handle_ret,
         }
-
-    # def alu(self, op, reg_a, reg_b):
-    #     """ALU operations. Arithmetic and Logic Unit"""
-    #     if op == AluOperations.ADD:
-    #         self.alu_unit(op, self.reg[reg_a], self.reg[reg_b])
-    #         # self.reg[reg_a] += self.reg[reg_b]
-    #     elif op == AluOperations.MUL:
-    #         self.reg[reg_a] *= self.reg[reg_b]
-    #     elif op == AluOperations.XOR:
-    #         # Perform a bitwise-XOR between the values in registerA and registerB, storing the result in registerA.
-    #         self.reg[reg_a] ^= self.reg[reg_b]
-    #     elif op == AluOperations.SUB:
-    #         # Subtract the value in the second register from the first, storing the result in registerA.
-    #         self.reg[reg_a] -= self.reg[reg_b]
-    #     elif op == AluOperations.SHR:
-    #         # Shift the value in registerA right by the number of bits specified in registerB,
-    #         # filling the high bits with 0.
-    #         self.reg[reg_a] >>= self.reg[reg_b]
-    #     elif op == AluOperations.SHL:
-    #         # Shift the value in registerA left by the number of bits specified in registerB,
-    #         # filling the low bits with 0.
-    #         self.reg[reg_a] <<= self.reg[reg_b]
-    #
-    #     else:
-    #         raise Exception(f"{BColors.FAIL}Unsupported ALU operation{BColors.END_}")
 
     def load(self, seed_file):
         """Load a program into memory."""
@@ -279,7 +254,7 @@ class CPU:
 
             # check to see if the instruction is an ALU operation
             if is_alu:
-                # if so, handle it with the ALU handler
+                # if so, handle it with the ALU handler class
                 self.alu(ir, op_a, op_b)
             else:
                 # otherwise, handle it according to its unique handler
@@ -332,6 +307,7 @@ class CPU:
         - `position` is the starting position (0 being furthest right) of where we'd like to start
         - Algorithm: bit = ( (1 << k_bits) - 1 ) & ( number >> (position - 1) )
         """
+
         # number of operands for this opcode, 0-2
         num_operands = 3 & (instruction_byte >> 6)
         # True if this is an ALU operation

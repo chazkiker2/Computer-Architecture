@@ -1,6 +1,5 @@
 """CPU functionality."""
 
-import sys
 from utils import BColors
 
 HLT = 0b00000001
@@ -9,6 +8,28 @@ PRN = 0b01000111
 MUL = 0b10100010
 PUSH = 0b01000101
 POP = 0b01000110
+CALL = 0b01010000
+RET = 0b00010001
+ADD = 0b10100000
+
+operations_string = f"""
+HLT = {bin(HLT)} = {HLT}
+LDI = {bin(LDI)} = {LDI}
+PRN = {bin(PRN)} = {PRN}
+MUL = {bin(MUL)} = {MUL}
+PUSH = {bin(PUSH)} = {PUSH}
+POP = {bin(POP)} = {POP}
+CALL = {bin(CALL)} = {CALL}
+RET = {bin(RET)} = {RET}
+ADD = {bin(ADD)} = {ADD}
+"""
+
+
+class AluOperations:
+    ADD = "ADD"
+    MUL = "MUL"
+    XOR = "XOR"
+
 
 DEFAULT_PROGRAM = [
     # From print8.ls8
@@ -34,14 +55,19 @@ class CPU:
         self.ram = [0 for _ in range(256)]
 
         # 8 general-purpose 8-bit numeric registers R0-R7.
-        #
-        # TODO: R5 is reserved as the interrupt mask (IM)
-        # TODO: R6 is reserved as the interrupt status (IS)
         self.reg = [0 for _ in range(8)]
+
+        # TODO: R5 is reserved as the interrupt mask (IM)
+        # self.irr_m = self.reg[5] = 0
+        # TODO: R6 is reserved as the interrupt status (IS)
+        # self.irr_s = self.reg[6] = 0
+
         # R7 is reserved as the stack pointer (SP)
         self.sp = self.reg[7] = 0xF4
-
+        # program count
         self.pc = 0
+
+        # branch table for handling various instructions
         self.branch_table = {
             HLT: self.handle_hlt,
             LDI: self.handle_ldi,
@@ -49,6 +75,9 @@ class CPU:
             MUL: self.handle_mul,
             POP: self.handle_pop,
             PUSH: self.handle_push,
+            CALL: self.handle_call,
+            RET: self.handle_ret,
+            ADD: self.handle_add,
         }
 
     def load(self, seed_file):
@@ -60,7 +89,7 @@ class CPU:
                     f"{BColors.BOLD}{BColors.OK_GREEN}"
                     f"Loading program from {BColors.UNDERLINE}{BColors.OK_CYAN}{file_path}{BColors.END_}"
                 )
-                program = [int(line.split()[0], 2) for line in file.readlines()]
+                program = [int(line.split()[0], 2) for line in file.readlines() if line[0] != "#"]
         except IOError:
             print(
                 f"{BColors.FAIL}"
@@ -73,11 +102,11 @@ class CPU:
             self.ram[address] = instruction
 
     def alu(self, op, reg_a, reg_b):
-        """ALU operations."""
+        """ALU operations. Arithmetic and Logic Unit"""
 
-        if op == "ADD":
+        if op == AluOperations.ADD:
             self.reg[reg_a] += self.reg[reg_b]
-        elif op == "MUL":
+        elif op == AluOperations.MUL:
             self.reg[reg_a] *= self.reg[reg_b]
         else:
             raise Exception(f"{BColors.FAIL}Unsupported ALU operation{BColors.END_}")
@@ -106,21 +135,28 @@ class CPU:
 
         # this loop will be killed with .exit() in CPU::handle_hlt() method
         while True:
-            # .trace for debugging
-            self.trace()
+            # uncomment the call to self.trace() below for debugging
+            # self.trace()
+
             # read the address in PC register and store that result in our "instruction register"
             # additionally, read adjacent bytes in case the instruction requires them
             ir, op_a, op_b = self.ram_read(self.pc)
             # handle the instruction according to its spec
-            # update PC to point to the next instruction
-            # PC will increase by 1 at minimum, and 1 additional for each additional byte (op_a and op_b)
-            # the instruction consumes... so at least 1, at most 3
-            self.pc += 1 + self.branch_table[ir](op_a=op_a, op_b=op_b)
+            # returns the number of additional bytes consumed or `None` if the operation manipulates self.pc directly
+            out = self.branch_table[ir](op_a=op_a, op_b=op_b)
+            # check if operation manipulated self.pc directly... if `out` is not None,
+            # then we'll increment `self.pc` accordingly
+            if out:
+                # update PC to point to the next instruction
+                # PC will increase by 1 at minimum, and 1 additional for each additional byte (op_a and op_b)
+                # the instruction consumes... so at least 1, at most 3
+                self.pc += 1 + out
 
     def ram_read(self, mar):
         """read data from memory
 
         :param mar: Memory Address Register, the address from which to read data
+        :returns: a tuple with the data in the given MAR, as well as the two adjacent bytes
         """
         return tuple(self.ram[mar:mar + 3])
 
@@ -134,48 +170,164 @@ class CPU:
 
     @staticmethod
     def bits(n):
+        """return a generator of only set bits (bits with a value of 1) from the bitset"""
         while n:
             b = n & (~n + 1)
             yield b
             n ^= b
 
-    # --------------------------------------
+    # ==================================================================================================
     # INSTRUCTION HANDLERS
-    # --------------------------------------
+    # ==================================================================================================
+    #
+    # Every following method is an instruction handler.
+    #
+    # Methods that deal with the ALU are grouped at the bottom under the
+    # comment that says "HANDLERS FOR ALU OPERATIONS"
+    #
+    # RULES & CONVENTIONS
+    #
+    # Each instruction handler should always abide by the following rules:
+    #
+    #  1. Method name conventions -- each handler's method name should...
+    #    a. begin with the prefix `handle_`
+    #    b. finish with the lowercase version of its associated instruction key (i.e., the instruction handler
+    #    for the halt command `HLT` would be called `handle_hlt`)
+    #
+    #  2. Each handler should ALWAYS take keyword arguments (kwargs)
+    #    a. If the kwargs are used, name them `**kwargs`, like so:
+    #       `def handler_example(self, **kwargs):`
+    #    b. If the kwargs are UNUSED, name them with the underscore, like so:
+    #       `def handler_example(self, **_):`
+    #
+    #    # EXAMPLE
+    #    ```
+    #    # The LDI instruction takes in two additional bytes of information
+    #    # which represent (1) a register and (2) an immediate value
+    #    # as such, the method would take in `**kwargs` as a parameter and USE them
+    #    def handle_ldi(self, **kwargs):
+    #       pass  # do something with kwargs
+    #
+    #    # The RET instruction, however, does not require any additional bytes of information
+    #    # thus, the method would take in `**_` as a parameter to allow the passing in of kwargs
+    #    # but simultaneously showcase that we are not USING them in this method
+    #    def handle_ret(self, **_):
+    #        pass  # do something without use of keyword arguments
+    #    ```
+    #
+    #  3. The very first line should be CONSUMING the `kwargs` parameter if kwargs are consumed. The constants
+    #    OP_A="op_a" and OP_B="op_b" are defined for taking OP_A and OP_B from kwargs. These are the two additional
+    #    bytes that an instruction may depend on. The first line of code in any handler should pull these variables
+    #    out of kwargs and store them in a more aptly named variable.
+    #
+    #    # EXAMPLE
+    #    ```
+    #    # The LDI instruction takes in two additional bytes of information
+    #    # which represent (1) a register and (2) an immediate value
+    #    def handle_ldi(self, **kwargs):
+    #       # as such, we should make it clear what these keyword arguments ARE
+    #       # by storing them in more clear variable names
+    #       register, immediate = kwargs[OP_A], kwargs[OP_B]
+    #       pass  # do something with `register` and `immediate`
+    #    ```
+    #
+    #  4. Each handler should return either an integer number or `None`
+    #    a. If the handler directly manipulates the program count `self.pc` property, then return `None`
+    #       Note, this can be an implicit return of `None` by omitting the return statement altogether.
+    #    b. Otherwise, the handler should return the number of ADDITIONAL BYTES consumed. This is explicitly
+    #       and directly correlated to the number of kwargs a handler consumes.
+    #       For example: The LDI instruction consumes two additional bytes of information (1) the register and
+    #       (2) the immediate value. As such, it takes in `**kwargs` as a parameter, consumes those kwargs
+    #       as the first line of code in the method, and so should finally `return 2` to communicate that
+    #       this handler consumed TWO ADDITIONAL bytes of information
+    #
+    # ==================================================================================================
+    def handle_ret(self, **_):
+        """return from the subroutine and pick up where we left off execution"""
+        # pop the top of stack and store it in our PC
+        # this resumes executing where we left off
+        self.pc = self.ram[self.sp]
+        # increase sp b/c we're popping
+        self.sp += 1
+
+    def handle_call(self, **kwargs):
+        """calls a subroutine at the address stored in the register"""
+
+        register = kwargs[OP_A]
+        # push the address of the instruction directly after CALL onto the stack
+        # we will return here when subroutine finishes execution
+
+        # decrease sp b/c we're pushing
+        self.sp -= 1
+        self.ram[self.sp] = self.pc + 2
+
+        # The PC is set to the address stored in the given register.
+        # We jump to that location in RAM and execute the first instruction in the subroutine.
+        # The PC can move forward or backwards from its current location.
+        self.pc = self.reg[register]
+
     def handle_pop(self, **kwargs):
-        # POP
-        op_a = kwargs[OP_A]
-        self.reg[op_a] = self.ram[self.sp]
+        """POP -- pop the value at the top of the stack into the given register"""
+        register = kwargs[OP_A]
+        self.reg[register] = self.ram[self.sp]
         self.sp += 1
         return 1
 
     def handle_push(self, **kwargs):
-        # PUSH
-        op_a = kwargs[OP_A]
+        """PUSH -- push the value in the given register onto the stack"""
+        register = kwargs[OP_A]
         self.sp -= 1
-        self.ram[self.sp] = self.reg[op_a]
+        self.ram[self.sp] = self.reg[register]
         return 1
 
-    def handle_hlt(self, **kwargs):
-        # HLT -- HALT the program
-        print(f"{BColors.BOLD}{BColors.WARNING}HALTING{BColors.END_}")
-        exit()
-        return 0
-
     def handle_ldi(self, **kwargs):
-        # LDI
-        op_a, op_b = kwargs[OP_A], kwargs[OP_B]
-        self.reg[op_a] = op_b
+        """LDI -- set the value of a register to an integer
+
+        LDI register immediate: register = immediate
+        """
+        register, immediate = kwargs[OP_A], kwargs[OP_B]
+        self.reg[register] = immediate
         return 2
 
     def handle_prn(self, **kwargs):
-        # PRN
-        op_a = kwargs[OP_A]
-        print(f"{self.reg[op_a]}")
+        """PRN -- print numeric value in the given register
+
+        Print to the console the decimal integer value that is stored in a given register
+
+        PRN register: prints decimal representation of the value stored in register
+        """
+        register = kwargs[OP_A]
+        print(f"{self.reg[register]}")
         return 1
 
+    @staticmethod
+    def handle_hlt(**_):
+        """HLT -- Halt the CPU and exit the emulator"""
+        print(f"{BColors.BOLD}{BColors.WARNING}HALTING{BColors.END_}")
+        exit()
+        # though this return statement will go unused, figured I'd keep it for consistency
+        return 0
+
+    # --------------------------------------
+    # HANDLERS FOR ALU OPERATIONS
+    # --------------------------------------
     def handle_mul(self, **kwargs):
-        # MUL
-        op_a, op_b = kwargs[OP_A], kwargs[OP_B]
-        self.alu("MUL", op_a, op_b)
+        """MUL -- multiply the values in two registers together and store the result in registerA
+
+        this instruction is handled by the ALU
+        MUL registerA registerB: registerA = registerA * registerB
+        """
+
+        register_a, register_b = kwargs[OP_A], kwargs[OP_B]
+        self.alu(AluOperations.MUL, register_a, register_b)
+        return 2
+
+    def handle_add(self, **kwargs):
+        """ADD -- add the value in two registers and store the result in registerA
+
+        this instruction is handled by the ALU
+        ADD registerA registerB: registerA = registerA + registerB
+        """
+        register_a, register_b = kwargs[OP_A], kwargs[OP_B]
+        self.alu(AluOperations.ADD, register_a, register_b)
         return 2

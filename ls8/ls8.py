@@ -5,7 +5,8 @@
 import sys
 from cpu import *
 
-cpu = CPU()
+if __name__ == '__main__':
+    cpu = CPU()
 
-cpu.load()
-cpu.run()
+    cpu.load()
+    cpu.run()

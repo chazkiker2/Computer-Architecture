@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Main."""
+__author__ = "Chaz Kiker"
 
 import sys
 from cpu import *

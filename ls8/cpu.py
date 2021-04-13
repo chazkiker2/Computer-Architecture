@@ -1,5 +1,7 @@
 """CPU functionality."""
+__author__ = "Chaz Kiker"
 
+from alu import Alu
 from utils import BColors
 
 DEFAULT_PROGRAM = [
@@ -15,6 +17,7 @@ DEFAULT_PROGRAM = [
 OP_A = "op_a"
 OP_B = "op_b"
 
+NOP = 0b00000000
 HLT = 0b00000001
 LDI = 0b10000010
 PRN = 0b01000111
@@ -34,119 +37,6 @@ JMP = 0b01010100
 JNE = 0b01010110
 LD = 0b10000011
 ST = 0b10000100
-
-
-class AluOperations:
-    ADD = 0b10100000
-    AND = 0b10101000
-    CMP = 0b10100111
-    DEC = 0b01100110
-    DIV = 0b10100011
-    INC = 0b01100101
-    MOD = 0b10100100
-    MUL = 0b10100010
-    NOT = 0b01101001
-    OR = 0b10101010
-    SUB = 0b10100001
-    SHR = 0b10101101
-    SHL = 0b10101100
-    XOR = 10101011
-
-
-class Alu:
-    def __init__(self):
-        self.branch_table = {
-            AluOperations.ADD: self.add,
-            AluOperations.MUL: self.mul,
-            AluOperations.XOR: self.xor,
-            AluOperations.SUB: self.sub,
-            AluOperations.SHR: self.shr,
-            AluOperations.SHL: self.shl,
-            AluOperations.AND: self.alu_and,
-            AluOperations.CMP: self.cmp,
-            AluOperations.DEC: self.dec,
-            AluOperations.DIV: self.div,
-            AluOperations.INC: self.inc,
-            AluOperations.OR: self.alu_or,
-            AluOperations.NOT: self.alu_not,
-            AluOperations.MOD: self.mod,
-        }
-
-    def __call__(self, op, reg_a, reg_b, *args, **kwargs):
-        if op not in self.branch_table:
-            raise Exception(f"{BColors.FAIL}Unsupported ALU operation{BColors.END_}")
-
-        self.branch_table[op](reg_a, reg_b)
-
-    @staticmethod
-    def add(a, b):
-        a += b
-
-    @staticmethod
-    def mul(a, b):
-        a *= b
-
-    @staticmethod
-    def xor(a, b):
-        a ^= b
-
-    @staticmethod
-    def sub(a, b):
-        a -= b
-
-    @staticmethod
-    def shr(a, b):
-        a >>= b
-
-    @staticmethod
-    def shl(a, b):
-        a <<= b
-
-    @staticmethod
-    def alu_and(a, b):
-        a &= b
-
-    @staticmethod
-    def cmp(a, b):
-        """Compare the values in two registers.
-
-        * If they are equal, set the Equal `E` flag to 1, otherwise set it to 0.
-        * If registerA is less than registerB, set the Less-than `L` flag to 1,
-          otherwise set it to 0.
-        * If registerA is greater than registerB, set the Greater-than `G` flag
-          to 1, otherwise set it to 0.
-        """
-        raise NotImplementedError()
-
-    @staticmethod
-    def dec(a, _):
-        a -= 1
-
-    @staticmethod
-    def div(a, b):
-        if b == 0:
-            print(f"{BColors.WARNING}{BColors.BOLD}CANNOT DIVIDE BY ZERO{BColors.END_}")
-            exit()
-        a /= b
-
-    @staticmethod
-    def inc(a, _):
-        a += 1
-
-    @staticmethod
-    def mod(a, b):
-        if b == 0:
-            print(f"{BColors.WARNING}{BColors.BOLD}CANNOT DIVIDE BY ZERO{BColors.END_}")
-            exit()
-        a %= b
-
-    @staticmethod
-    def alu_not(a, _):
-        a = ~a
-
-    @staticmethod
-    def alu_or(a, b):
-        a |= b
 
 
 class CPU:
@@ -183,6 +73,7 @@ class CPU:
             PUSH: self.handle_push,
             CALL: self.handle_call,
             RET: self.handle_ret,
+            NOP: lambda: "pass",
         }
 
     def load(self, seed_file):
@@ -194,13 +85,12 @@ class CPU:
                     f"{BColors.BOLD}{BColors.OK_GREEN}"
                     f"Loading program from {BColors.UNDERLINE}{BColors.OK_CYAN}{file_path}{BColors.END_}"
                 )
+                # split the line and cast the first entry into a base 2 int
+                # for each line in file if the line doesn't start with a comment
                 program = [
-                    # split the line and cast the first entry into a base 2 int
                     int(line.split()[0], 2)
-                    # do this for every line in file
                     for line in file.readlines()
-                    # but only if the line doesn't start with a comment
-                    if line[0] != "#"
+                    if line != "" and line[0] != "#" and line.split()
                 ]
 
         except IOError:

@@ -43,8 +43,8 @@ class Alu:
     def __call__(self, op, reg_a, reg_b, *args, **kwargs):
         if op not in self.branch_table:
             raise Exception(f"{BColors.FAIL}Unsupported ALU operation{BColors.END_}")
-
-        self.branch_table[op](reg_a, reg_b)
+        else:
+            return self.branch_table[op](reg_a, reg_b)
 
     @staticmethod
     def add(a, b):
@@ -76,15 +76,7 @@ class Alu:
 
     @staticmethod
     def cmp(a, b):
-        """Compare the values in two registers.
-
-        * If they are equal, set the Equal `E` flag to 1, otherwise set it to 0.
-        * If registerA is less than registerB, set the Less-than `L` flag to 1,
-          otherwise set it to 0.
-        * If registerA is greater than registerB, set the Greater-than `G` flag
-          to 1, otherwise set it to 0.
-        """
-        raise NotImplementedError()
+        return 0 if a == b else 1 if a > b else -1
 
     @staticmethod
     def dec(a, _):

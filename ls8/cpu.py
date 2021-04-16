@@ -1,7 +1,7 @@
 """CPU functionality."""
 __author__ = "Chaz Kiker"
 
-from alu import Alu
+from alu import Alu, AluOperations
 from utils import BColors
 
 DEFAULT_PROGRAM = [
@@ -39,28 +39,61 @@ LD = 0b10000011
 ST = 0b10000100
 
 
+class BitUtils:
+    @staticmethod
+    def bits(n):
+        """return a generator of only set bits (bits with a value of 1) from the bitset"""
+        while n:
+            b = n & (~n + 1)
+            yield b
+            n ^= b
+
+    @staticmethod
+    def read_bits(n, k, p):
+        """reads k bits from number n starting at position p (0-indexed)"""
+        return ((1 << k) - 1) & (n >> p)
+
+    @staticmethod
+    def set(num, n):
+        num |= 1 << n
+
+    @staticmethod
+    def clear(num, n):
+        """clear the nth bit of num"""
+        num &= ~(1 << n)
+
+    @staticmethod
+    def toggle(num, n):
+        num ^= 1 << n
+
+    @staticmethod
+    def read(num, n):
+        return (num >> n) & 1
+
+    @staticmethod
+    def set_to(num, n, x):
+        num ^= (-x ^ num) & (1 << n)
+
+
 class CPU:
     """Main CPU class."""
 
     def __init__(self):
         """Construct a new CPU."""
-
         # arithmetic & logic unit
         self.alu = Alu()
-
         # Random Access Memory (256 bytes)
         self.ram = [0 for _ in range(256)]
-
         # 8 general-purpose 8-bit numeric registers R0-R7.
         self.reg = [0 for _ in range(8)]
-
-        # TODO: R5 is reserved as the interrupt mask (IM)
-        # self.irr_m = self.reg[5] = 0
-        # TODO: R6 is reserved as the interrupt status (IS)
-        # self.irr_s = self.reg[6] = 0
-
         # R7 is reserved as the stack pointer (SP)
         self.sp = self.reg[7] = 0xF4
+        # FL: flags -- 00000LGE
+        self.fl = 0b00000000
+        # TODO: # R5 is reserved as the interrupt mask (IM)
+        # self.irr_m = self.reg[5] = 0
+        # TODO: # R6 is reserved as the interrupt status (IS)
+        # self.irr_s = self.reg[6] = 0
         # program count
         self.pc = 0
 
@@ -73,6 +106,7 @@ class CPU:
             PUSH: self.handle_push,
             CALL: self.handle_call,
             RET: self.handle_ret,
+            AluOperations.CMP: self.handle_cmp,
             NOP: lambda: "pass",
         }
 
@@ -129,7 +163,7 @@ class CPU:
         # this loop will be killed with .exit() in CPU::handle_hlt() method
         while True:
             # uncomment the call to self.trace() below for debugging
-            # self.trace()
+            self.trace()
 
             # read the address in PC register and store that result in our "instruction_byte register"
             # additionally, read adjacent bytes in case the instruction_byte requires them
@@ -148,7 +182,8 @@ class CPU:
             if is_alu:
                 # if so, handle it with the ALU handler class
                 self.alu(ir, op_a, op_b)
-            else:
+            # else:
+            if ir in self.branch_table:
                 # otherwise, handle it according to its unique handler
                 self.branch_table[ir](**kwargs)
 
@@ -175,14 +210,6 @@ class CPU:
         self.ram[mar] = mdr
 
     @staticmethod
-    def bits(n):
-        """return a generator of only set bits (bits with a value of 1) from the bitset"""
-        while n:
-            b = n & (~n + 1)
-            yield b
-            n ^= b
-
-    @staticmethod
     def destructure_byte(instruction_byte):
         """
         extracts each meaningful bit for any given instruction byte
@@ -192,28 +219,65 @@ class CPU:
         * `B` 1 if this is an ALU operation
         * `C` 1 if this instruction sets the PC
         * `DDDD` Instruction identifier
-
-        This method uses the following algorithm to extract each chunk:
-        - `k_bits` is the number of bits we'd like to extract (2 for AA, 1 for B, 1 for C, 4 for DDDD)
-        - `number` is the given instruction_byte itself
-        - `position` is the starting position (0 being furthest right) of where we'd like to start
-        - Algorithm: bit = ( (1 << k_bits) - 1 ) & ( number >> (position - 1) )
         """
-
+        destructured = {
+            "AA": BitUtils.read_bits(n=instruction_byte, k=2, p=6),
+            "B": BitUtils.read_bits(n=instruction_byte, k=1, p=5),
+            "C": BitUtils.read_bits(n=instruction_byte, k=1, p=4),
+            "DDDD": BitUtils.read_bits(n=instruction_byte, k=4, p=0)
+        }
         # number of operands for this opcode, 0-2
-        num_operands = 3 & (instruction_byte >> 6)
+        num_operands = destructured["AA"]
         # True if this is an ALU operation
-        is_alu_operation = 1 & (instruction_byte >> 5) != 0
+        is_alu_operation = destructured["B"] != 0
         # True if this instruction sets the PC
-        is_pc_set = 1 & (instruction_byte >> 4) != 0
+        is_pc_set = destructured["C"] != 0
         # Instruction identifier
-        instruction_id = 15 & instruction_byte
+        instruction_id = destructured["DDDD"]
 
         return num_operands, is_alu_operation, is_pc_set, instruction_id
 
     # --------------------------------------
     # INSTRUCTION HANDLERS
     # --------------------------------------
+    def handle_cmp(self, op_a, op_b):
+        """carries out the side effect of the CMP operation
+
+        * If they are equal, set the Equal `E` flag to 1, otherwise set it to 0.
+        * If registerA is less than registerB, set the Less-than `L` flag to 1,
+          otherwise set it to 0.
+        * If registerA is greater than registerB, set the Greater-than `G` flag
+          to 1, otherwise set it to 0.
+
+        """
+        compared = self.alu(AluOperations.CMP, op_a, op_b)
+        # FL: flags -- 00000LGE
+        li, gi, ei = 2, 1, 0
+
+        # if registers are equal
+        if compared == 0:
+            # set the E flag to 1
+            BitUtils.set(self.fl, ei)
+
+        # else, registers are not equal
+        else:
+            # clear the E flag to 0
+            BitUtils.clear(self.fl, ei)
+
+            # if regA is greater than regB
+            if compared > 0:
+                # set the G flag to 1
+                BitUtils.set(self.fl, gi)
+                # clear the L flag to 0
+                BitUtils.clear(self.fl, li)
+
+            # else, regA is less than regB
+            else:
+                # set the L flag to 1
+                BitUtils.set(self.fl, li)
+                # clear the G flag to 0
+                BitUtils.clear(self.fl, gi)
+
     def handle_ret(self):
         """return from the subroutine and pick up where we left off execution"""
         # pop the top of stack and store it in our PC

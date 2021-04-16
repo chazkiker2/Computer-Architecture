@@ -39,6 +39,42 @@ JLT = 0b01011000
 LD = 0b10000011
 ST = 0b10000100
 
+inverse_table = {
+ 0b00000000: "NOP",
+ 0b00000001: "HLT",
+ 0b10000010: "LDI",
+ 0b01000111: "PRN",
+ 0b01000101: "PUSH",
+ 0b01000110: "POP",
+ 0b01010000: "CALL",
+ 0b00010001: "RET",
+ 0b10000100: "ST",
+ 0b01010100: "JMP",
+ 0b01010010: "INT",
+ 0b00010011: "IRET",
+ 0b01010101: "JEQ",
+ 0b01011010: "JGE",
+ 0b01010111: "JGT",
+ 0b01011001: "JLE",
+ 0b01011000: "JLT",
+ 0b01010110: "JNE",
+ 0b10000011: "LD",
+ 0b10100000: "ALU_ADD",
+ 0b10101000: "ALU_AND",
+ 0b10100111: "ALU_CMP",
+ 0b01100110: "ALU_DEC",
+ 0b10100011: "ALU_DIV",
+ 0b01100101: "ALU_INC",
+ 0b10100100: "ALU_MOD",
+ 0b10100010: "ALU_MUL",
+ 0b01101001: "ALU_NOT",
+ 0b10101010: "ALU_OR",
+ 0b10100001: "ALU_SUB",
+ 0b10101101: "ALU_SHR",
+ 0b10101100: "ALU_SHL",
+ 10101011: "ALU_XOR",
+}
+
 
 class BitUtils:
     @staticmethod
@@ -57,15 +93,18 @@ class BitUtils:
     @staticmethod
     def set(num, n):
         num |= 1 << n
+        return num
 
     @staticmethod
     def clear(num, n):
         """clear the nth bit of num"""
         num &= ~(1 << n)
+        return num
 
     @staticmethod
     def toggle(num, n):
         num ^= 1 << n
+        return num
 
     @staticmethod
     def read(num, n):
@@ -74,6 +113,7 @@ class BitUtils:
     @staticmethod
     def set_to(num, n, x):
         num ^= (-x ^ num) & (1 << n)
+        return num
 
 
 class CPU:
@@ -160,14 +200,23 @@ class CPU:
 
         A helper function to print out the CPU state. call from CPU::run() for debugging
         """
-        ir, op_a, op_b = self.ram_read(self.pc)
 
-        print(f"{BColors.BOLD}{BColors.OK_BLUE}TRACE: %02X {BColors.END_}| %02X %02X %02X |{BColors.OK_CYAN}" % (
-            self.pc,
-            ir,
-            op_a,
-            op_b
-        ), end='')
+        ir, op_a, op_b = self.ram_read(self.pc)
+        trace_key = inverse_table[self.pc] if self.pc in inverse_table \
+            else inverse_table[ir] if ir in inverse_table \
+            else f"ir=({bin(ir)}, {ir}) & pc=({bin(self.pc)}, {self.pc})"
+        BOLD, OK_BLUE, END_ = BColors.BOLD, BColors.OK_BLUE, BColors.END_
+
+        alt_message = f"{BOLD}{OK_BLUE}TRACE: {trace_key} {END_} | {'%02X %02X %02X' % (ir, op_a, op_b)} | "
+
+        # print(f"{BColors.BOLD}{BColors.OK_BLUE}TRACE: %02X {BColors.END_}| %02X %02X %02X |{BColors.OK_CYAN}" % (
+        #     self.pc,
+        #     ir,
+        #     op_a,
+        #     op_b
+        # ), end='')
+
+        print(alt_message, end='')
 
         for i in range(8):
             print(" %02X" % self.reg[i], end='')
@@ -180,7 +229,7 @@ class CPU:
         # this loop will be killed with .exit() in CPU::handle_hlt() method
         while True:
             # uncomment the call to self.trace() below for debugging
-            self.trace()
+            # self.trace()
 
             # read the address in PC register and store that result in our "instruction_byte register"
             # additionally, read adjacent bytes in case the instruction_byte requires them
@@ -199,7 +248,6 @@ class CPU:
             if is_alu:
                 # if so, handle it with the ALU handler class
                 self.alu(ir, op_a, op_b)
-            # else:
             if ir in self.branch_table:
                 # otherwise, handle it according to its unique handler
                 self.branch_table[ir](**kwargs)
@@ -267,33 +315,35 @@ class CPU:
           to 1, otherwise set it to 0.
 
         """
+
         compared = self.alu(AluOperations.CMP, op_a, op_b)
+
         # FL: flags -- 00000LGE
         li, gi, ei = 2, 1, 0
 
         # if registers are equal
         if compared == 0:
             # set the E flag to 1
-            BitUtils.set(self.fl, ei)
+            self.fl = BitUtils.set(self.fl, ei)
 
         # else, registers are not equal
         else:
             # clear the E flag to 0
-            BitUtils.clear(self.fl, ei)
+            self.fl = BitUtils.clear(self.fl, ei)
 
             # if regA is greater than regB
             if compared > 0:
                 # set the G flag to 1
-                BitUtils.set(self.fl, gi)
+                self.fl = BitUtils.set(self.fl, gi)
                 # clear the L flag to 0
-                BitUtils.clear(self.fl, li)
+                self.fl = BitUtils.clear(self.fl, li)
 
             # else, regA is less than regB
             else:
-                # set the L flag to 1
-                BitUtils.set(self.fl, li)
                 # clear the G flag to 0
-                BitUtils.clear(self.fl, gi)
+                self.fl = BitUtils.clear(self.fl, gi)
+                # set the L flag to 1
+                self.fl = BitUtils.set(self.fl, li)
 
     def handle_jmp(self, op_a):
         register = op_a
@@ -302,14 +352,20 @@ class CPU:
     def handle_jne(self, op_a):
         if not self.fl_e:
             self.handle_jmp(op_a)
+        else:
+            self.pc += 2
 
     def handle_jge(self, op_a):
         if self.fl_e or self.fl_g:
             self.handle_jmp(op_a)
+        else:
+            self.pc += 2
 
     def handle_jeq(self, op_a):
         if self.fl_e:
             self.handle_jmp(op_a)
+        else:
+            self.pc += 2
 
     def handle_ret(self):
         """return from the subroutine and pick up where we left off execution"""

@@ -25,16 +25,17 @@ PUSH = 0b01000101
 POP = 0b01000110
 CALL = 0b01010000
 RET = 0b00010001
+# IN PROGRESS
+JMP = 0b01010100
+JEQ = 0b01010101
+JNE = 0b01010110
 # TODO: IMPLEMENT THE FOLLOWING INSTRUCTIONS
 INT = 0b01010010
 IRET = 0b00010011
-JEQ = 0b01010101
 JGE = 0b01011010
 JGT = 0b01010111
 JLE = 0b01011001
 JLT = 0b01011000
-JMP = 0b01010100
-JNE = 0b01010110
 LD = 0b10000011
 ST = 0b10000100
 
@@ -108,7 +109,23 @@ class CPU:
             RET: self.handle_ret,
             AluOperations.CMP: self.handle_cmp,
             NOP: lambda: "pass",
+            JEQ: self.handle_jeq,
+            JGE: self.handle_jge,
+            JNE: self.handle_jne,
+            JMP: self.handle_jmp,
         }
+
+    @property
+    def fl_l(self):
+        return BitUtils.read(self.fl, 2) != 0
+
+    @property
+    def fl_g(self):
+        return BitUtils.read(self.fl, 1) != 0
+
+    @property
+    def fl_e(self):
+        return BitUtils.read(self.fl, 0) != 0
 
     def load(self, seed_file):
         """Load a program into memory."""
@@ -277,6 +294,22 @@ class CPU:
                 BitUtils.set(self.fl, li)
                 # clear the G flag to 0
                 BitUtils.clear(self.fl, gi)
+
+    def handle_jmp(self, op_a):
+        register = op_a
+        self.pc = self.reg[register]
+
+    def handle_jne(self, op_a):
+        if not self.fl_e:
+            self.handle_jmp(op_a)
+
+    def handle_jge(self, op_a):
+        if self.fl_e or self.fl_g:
+            self.handle_jmp(op_a)
+
+    def handle_jeq(self, op_a):
+        if self.fl_e:
+            self.handle_jmp(op_a)
 
     def handle_ret(self):
         """return from the subroutine and pick up where we left off execution"""

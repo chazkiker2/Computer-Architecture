@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-
 """Main."""
+__author__ = "Chaz Kiker"
 
 import sys
 from cpu import *
@@ -14,6 +14,9 @@ def main():
     except IndexError:
         seed_file = "examples/print8.ls8"
         print(f"No argument given, defaulting to {seed_file}")
+    except FileNotFoundError:
+        seed_file = "examples/print8.ls8"
+        print(f"{sys.argv[1]} not found -- defaulting to 'examples/print8.ls8'")
 
     cpu.load(seed_file)
     cpu.run()
